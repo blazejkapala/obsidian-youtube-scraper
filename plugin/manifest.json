@@ -1,0 +1,9 @@
+{
+	"id": "youtube-scraper",
+	"name": "YouTube Scraper",
+	"version": "1.0.0",
+	"minAppVersion": "1.0.0",
+	"description": "Scrape YouTube video transcripts from links in your notes",
+	"author": "banan",
+	"isDesktopOnly": false
+}

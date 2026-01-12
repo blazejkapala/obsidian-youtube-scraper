@@ -1,0 +1,14 @@
+# npm
+node_modules/
+package-lock.json
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+data.json

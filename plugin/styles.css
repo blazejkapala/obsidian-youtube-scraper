@@ -1,0 +1,196 @@
+/* YouTube Scraper Plugin Styles */
+
+/* Modal */
+.yt-scraper-modal {
+	padding: 10px;
+}
+
+.yt-scraper-status {
+	color: var(--text-muted);
+	margin-bottom: 15px;
+}
+
+.yt-scraper-hidden {
+	display: none !important;
+}
+
+/* Progress */
+.yt-scraper-progress {
+	margin: 15px 0;
+	padding: 15px;
+	background: var(--background-secondary);
+	border-radius: 8px;
+}
+
+.yt-scraper-progress-header {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 10px;
+}
+
+.yt-scraper-progress-text {
+	font-weight: 600;
+}
+
+.yt-scraper-stats {
+	color: var(--text-muted);
+	font-size: 0.9em;
+}
+
+.yt-scraper-bar-container {
+	height: 8px;
+	background: var(--background-modifier-border);
+	border-radius: 4px;
+	overflow: hidden;
+	margin-bottom: 10px;
+}
+
+.yt-scraper-bar-fill {
+	height: 100%;
+	background: linear-gradient(90deg, #ff0000, #cc0000);
+	border-radius: 4px;
+	transition: width 0.3s ease;
+}
+
+.yt-scraper-current-url {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	margin-bottom: 5px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.yt-scraper-progress-status {
+	font-size: 0.85em;
+	color: var(--text-accent);
+}
+
+/* Log */
+.yt-scraper-log {
+	max-height: 200px;
+	overflow-y: auto;
+	margin-top: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 5px;
+}
+
+.yt-scraper-log-entry {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px;
+	font-size: 0.85em;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.yt-scraper-log-entry:last-child {
+	border-bottom: none;
+}
+
+.yt-scraper-log-icon {
+	font-weight: bold;
+	width: 16px;
+	text-align: center;
+}
+
+.yt-scraper-log-success .yt-scraper-log-icon {
+	color: var(--text-success);
+}
+
+.yt-scraper-log-failed .yt-scraper-log-icon {
+	color: var(--text-error);
+}
+
+.yt-scraper-log-skipped .yt-scraper-log-icon {
+	color: var(--text-muted);
+}
+
+.yt-scraper-log-domain {
+	font-family: var(--font-monospace);
+	color: var(--text-muted);
+	flex-shrink: 0;
+	width: 100px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.yt-scraper-log-message {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Buttons */
+.yt-scraper-buttons {
+	display: flex;
+	gap: 10px;
+	margin-top: 15px;
+	flex-wrap: wrap;
+}
+
+/* Folder picker */
+.yt-scraper-folder-list {
+	max-height: 300px;
+	overflow-y: auto;
+	margin: 10px 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+}
+
+.yt-scraper-folder-item {
+	padding: 8px 12px;
+	cursor: pointer;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.yt-scraper-folder-item:last-child {
+	border-bottom: none;
+}
+
+.yt-scraper-folder-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* Status bar */
+.yt-scraper-statusbar {
+	cursor: pointer;
+}
+
+.yt-scraper-statusbar-active {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 8px;
+	background: var(--background-modifier-hover);
+	border-radius: 4px;
+}
+
+.yt-scraper-statusbar-icon {
+	font-size: 12px;
+}
+
+.yt-scraper-statusbar-text {
+	font-size: 11px;
+}
+
+.yt-scraper-statusbar-bar {
+	width: 40px;
+	height: 4px;
+	background: var(--background-modifier-border);
+	border-radius: 2px;
+	overflow: hidden;
+}
+
+.yt-scraper-statusbar-bar-fill {
+	height: 100%;
+	background: #ff0000;
+	transition: width 0.3s ease;
+}
+
+/* Settings */
+.yt-scraper-wide-input {
+	width: 100%;
+}

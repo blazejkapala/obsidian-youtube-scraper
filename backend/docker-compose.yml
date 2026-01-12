@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  youtube-scraper:
+    build: .
+    container_name: youtube-transcript-scraper
+    ports:
+      - "8765:8765"
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Warsaw
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Optional: Add volume for logs
+    # volumes:
+    #   - ./logs:/app/logs
+    
+    # Resource limits (optional, adjust as needed)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M

@@ -1,128 +1,140 @@
 # Obsidian YouTube Scraper Plugin
 
-Plugin do Obsidian pobierający transkrypcje z filmów YouTube. Wymaga uruchomionego backendu (Docker).
+Obsidian plugin for downloading YouTube video transcripts. Requires a running backend (Docker).
 
-## Funkcje
+**Note:** This plugin only detects and scrapes **YouTube links**. Other URLs are ignored.
 
-- 📺 Automatyczne wykrywanie linków YouTube w notatkach
-- 📝 Pobieranie transkrypcji (auto-generated i ręcznych)
-- 🔗 Automatyczne backlinki do transkrypcji
-- 📁 Skanowanie pojedynczej notatki, folderu lub całego vault
-- ⏸️ Pauza/wznowienie scrapowania
-- 🌐 Obsługa wielu języków transkrypcji
+## Features
 
-## Wymagania
+- 📺 Automatic YouTube link detection in notes
+- 📝 Download transcripts (auto-generated and manual)
+- 🌐 Multi-language support (download all available languages)
+- 🔗 Automatic backlinks to transcript files
+- 📁 Scan single note, folder, or entire vault
+- ⏸️ Pause/resume scraping
+- ⏱️ Optional timestamps in transcripts
 
-- Backend Docker uruchomiony w sieci LAN
+## Requirements
+
+- Backend Docker container running on LAN
 - Obsidian 1.0.0+
 
-## Instalacja
+## Installation
 
 ### 1. Backend (Docker)
 
-Na maszynie z Dockerem:
+On a machine with Docker:
 
 ```bash
-cd youtube-scraper-backend
+cd backend
 docker-compose up -d
 ```
 
-Sprawdź czy działa:
+Verify it works:
 ```bash
 curl http://localhost:8765/health
 ```
 
-### 2. Plugin Obsidian
+### 2. Plugin
 
-1. Skopiuj folder `obsidian-youtube-scraper-plugin` do `.obsidian/plugins/youtube-scraper/`
-2. Zainstaluj zależności i zbuduj:
-   ```bash
-   cd .obsidian/plugins/youtube-scraper
-   npm install
-   npm run build
-   ```
-3. Włącz plugin w ustawieniach Obsidian
-4. Skonfiguruj URL backendu (np. `http://192.168.1.100:8765`)
+Copy these files to `.obsidian/plugins/youtube-scraper/`:
+- `main.js`
+- `manifest.json`
+- `styles.css`
 
-## Użycie
+Or build from source:
+```bash
+npm install
+npm run build
+```
 
-### Menu (ikona YouTube w lewym panelu)
-- **Scrape current note** - scrapuj linki z aktualnej notatki
-- **Scrape folder...** - wybierz folder do skanowania
-- **Scrape all YouTube links in vault** - skanuj cały vault
-- **Test backend connection** - sprawdź połączenie z backendem
+3. Enable plugin in Obsidian → Settings → Community Plugins
+4. Configure **Backend URL** (e.g. `http://192.168.1.100:8765`)
 
-### Menu kontekstowe (prawy klik)
-- Na pliku `.md`: "Scrape YouTube links from this note"
-- Na folderze: "Scrape YouTube links from this folder"
-- W edytorze na linii z linkiem: "Scrape YouTube: ..."
+## Usage
 
-### Komendy (Ctrl/Cmd + P)
+### Menu (YouTube icon in left panel)
+- **Scrape current note** - scrape links from current note
+- **Scrape folder...** - select folder to scan
+- **Scrape all YouTube links in vault** - scan entire vault
+- **Test backend connection** - verify backend connectivity
+
+### Context Menu (right-click)
+- On `.md` file: "Scrape YouTube links from this note"
+- On folder: "Scrape YouTube links from this folder"
+- In editor on line with link: "Scrape YouTube: ..."
+
+### Commands (Ctrl/Cmd + P)
 - `YouTube Scraper: Scrape YouTube links from current note`
 - `YouTube Scraper: Scrape all YouTube links from vault`
 - `YouTube Scraper: Scrape YouTube link under cursor`
 - `YouTube Scraper: Test backend connection`
 
-## Ustawienia
+## Settings
 
 ### Backend connection
-- **Backend URL** - adres backendu (np. `http://192.168.1.100:8765`)
+- **Backend URL** - backend address (e.g. `http://192.168.1.100:8765`)
 
 ### Folder scope
-- **Output folder** - gdzie zapisywać transkrypcje (domyślnie: `youtube-transcripts`)
-- **Include folders** - skanuj tylko te foldery
-- **Exclude folders** - pomiń te foldery
+- **Output folder** - where to save transcripts (default: `youtube-transcripts`)
+- **Include folders** - only scan these folders
+- **Exclude folders** - skip these folders
 
 ### Backlinks
-- **Add backlinks** - dodawaj linki do transkrypcji w oryginalnych notatkach
-- **Backlink text** - tekst/emoji linku (domyślnie: `📺`)
+- **Add backlinks** - add links to transcripts in original notes
+- **Backlink text** - text/emoji for link (default: `📺`)
 
 ### Transcript options
-- **Preferred languages** - preferowane języki transkrypcji (np. `pl, en, auto`)
-- **Include timestamps** - dodaj timestampy przed segmentami
-- **Include segments** - zapisz jako osobne segmenty (zamiast ciągłego tekstu)
+- **Preferred languages** - preferred transcript languages (e.g. `pl, en, auto`)
+- **Include timestamps** - add timestamps before segments
+- **Include segments** - save as separate segments (instead of continuous text)
+- **Fetch all available languages** - download transcripts in all available languages
 
 ### General
-- **Skip already scraped** - pomiń filmy już zapisane
+- **Skip already scraped** - skip videos already saved
 
-## Format zapisanego pliku
+## Output File Format
 
 ```markdown
 ---
 video_id: "VIDEO_ID"
 url: "https://www.youtube.com/watch?v=VIDEO_ID"
-title: "Tytuł filmu"
-author: "Nazwa kanału"
-transcript_language: "en"
+title: "Video Title"
+author: "Channel Name"
+transcript_languages: "en, pl"
 scraped_at: "2024-01-15T12:00:00.000Z"
-source_notes: ["[[Notatka źródłowa]]"]
+source_notes: ["[[Source Note]]"]
 ---
 
-# Tytuł filmu
+# Video Title
 
 > **Video:** [link](url)
-> **Channel:** Nazwa kanału
-> **Language:** en
-> **Linked from:** [[Notatka źródłowa]]
+> **Channel:** Channel Name
+> **Languages:** en, pl
+> **Linked from:** [[Source Note]]
 
 ![Thumbnail](url)
 
-## Transcript
+## Transcript - English (auto-generated)
 
-Pełna transkrypcja filmu...
+Full English transcript...
+
+## Transcript - Polish
+
+Full Polish transcript...
 ```
 
-## Rozwiązywanie problemów
+## Troubleshooting
 
 ### "Cannot connect to backend"
-1. Sprawdź czy Docker jest uruchomiony
-2. Sprawdź adres IP maszyny z backendem
-3. Upewnij się że port 8765 jest dostępny
+1. Verify Docker is running
+2. Check backend machine IP address
+3. Ensure port 8765 is accessible
 
 ### "No transcript available"
-- Niektóre filmy nie mają transkrypcji
-- Spróbuj zmienić preferowane języki
+- Some videos don't have transcripts
+- Try changing preferred languages
 
 ### "Invalid YouTube URL"
-- Upewnij się że link jest prawidłowy
-- Obsługiwane formaty: youtube.com/watch?v=, youtu.be/, youtube.com/shorts/
+- Ensure link is valid
+- Supported formats: youtube.com/watch?v=, youtu.be/, youtube.com/shorts/

@@ -20,7 +20,7 @@ from youtube_transcript_api._errors import (
 app = FastAPI(
     title="YouTube Transcript Scraper",
     description="API for fetching YouTube video transcripts for Obsidian",
-    version="1.0.0"
+    version="0.1.0"
 )
 
 # CORS - allow all origins for local network access
@@ -35,13 +35,23 @@ app.add_middleware(
 
 class TranscriptRequest(BaseModel):
     url: str
-    languages: Optional[list[str]] = ["en", "pl", "de", "es", "fr", "auto"]
+    languages: Optional[list[str]] = ["pl", "en", "de", "es", "fr", "auto"]
+    fetch_all_languages: Optional[bool] = True  # Pobierz wszystkie dostępne języki
 
 
 class TranscriptSegment(BaseModel):
     text: str
     start: float
     duration: float
+
+
+class SingleTranscript(BaseModel):
+    """Single language transcript."""
+    language: str
+    language_name: Optional[str] = None
+    is_generated: bool = False
+    text: str
+    segments: list[TranscriptSegment]
 
 
 class VideoMetadata(BaseModel):
@@ -60,9 +70,12 @@ class TranscriptResponse(BaseModel):
     url: str
     video_id: str
     metadata: Optional[VideoMetadata] = None
+    # Główna transkrypcja (pierwsza z preferowanych)
     transcript_text: Optional[str] = None
     transcript_segments: Optional[list[TranscriptSegment]] = None
     transcript_language: Optional[str] = None
+    # Wszystkie pobrane transkrypcje
+    all_transcripts: Optional[list[SingleTranscript]] = None
     available_languages: Optional[list[str]] = None
     error: Optional[str] = None
 
@@ -113,58 +126,117 @@ def get_video_metadata(video_id: str) -> VideoMetadata:
         )
 
 
-def fetch_transcript(video_id: str, languages: list[str]) -> tuple[str, list[TranscriptSegment], str, list[str]]:
+def fetch_transcript(video_id: str, languages: list[str], fetch_all: bool = True) -> tuple[str, list[TranscriptSegment], str, list[str], list[SingleTranscript]]:
     """
     Fetch transcript for a YouTube video.
-    Returns: (full_text, segments, language_code, available_languages)
+    Returns: (full_text, segments, language_code, available_languages, all_transcripts)
     """
     ytt_api = YouTubeTranscriptApi()
     
-    # Get available transcripts
+    # Get available transcripts info
     available_languages = []
+    transcript_info = {}  # lang_code -> (language_name, is_generated)
     try:
         transcript_list = ytt_api.list(video_id)
-        available_languages = [t.language_code for t in transcript_list]
+        for t in transcript_list:
+            available_languages.append(t.language_code)
+            transcript_info[t.language_code] = (t.language, t.is_generated)
     except Exception:
         pass
     
-    # Try to fetch transcript in preferred languages
-    transcript = None
-    used_language = None
+    # Determine which languages to fetch
+    languages_to_fetch = []
     
-    # First try manual transcripts in preferred languages
-    for lang in languages:
-        if lang == "auto":
-            continue
+    if fetch_all:
+        # Fetch all preferred languages that are available
+        for lang in languages:
+            if lang == "auto":
+                continue
+            if lang in available_languages:
+                languages_to_fetch.append(lang)
+        
+        # Also add any available language not in preferred list
+        for lang in available_languages:
+            if lang not in languages_to_fetch:
+                languages_to_fetch.append(lang)
+    else:
+        # Just fetch first available preferred language
+        for lang in languages:
+            if lang == "auto":
+                continue
+            if lang in available_languages:
+                languages_to_fetch.append(lang)
+                break
+    
+    # Fetch all transcripts
+    all_transcripts: list[SingleTranscript] = []
+    primary_transcript = None
+    primary_language = None
+    
+    for lang in languages_to_fetch:
         try:
             transcript = ytt_api.fetch(video_id, languages=[lang])
-            used_language = lang
-            break
+            
+            segments = [
+                TranscriptSegment(
+                    text=entry.text,
+                    start=entry.start,
+                    duration=entry.duration
+                )
+                for entry in transcript
+            ]
+            
+            full_text = " ".join([entry.text for entry in transcript])
+            lang_name, is_generated = transcript_info.get(lang, (lang, False))
+            
+            single = SingleTranscript(
+                language=lang,
+                language_name=lang_name,
+                is_generated=is_generated,
+                text=full_text,
+                segments=segments
+            )
+            all_transcripts.append(single)
+            
+            # First successful is primary
+            if primary_transcript is None:
+                primary_transcript = (full_text, segments)
+                primary_language = lang
+                
         except (NoTranscriptFound, TranscriptsDisabled):
             continue
     
-    # If no manual transcript found, try auto-generated
-    if transcript is None:
+    # If nothing found, try auto-generated fallback
+    if not all_transcripts:
         try:
             transcript = ytt_api.fetch(video_id)
-            used_language = "auto"
+            segments = [
+                TranscriptSegment(
+                    text=entry.text,
+                    start=entry.start,
+                    duration=entry.duration
+                )
+                for entry in transcript
+            ]
+            full_text = " ".join([entry.text for entry in transcript])
+            
+            single = SingleTranscript(
+                language="auto",
+                language_name="Auto-generated",
+                is_generated=True,
+                text=full_text,
+                segments=segments
+            )
+            all_transcripts.append(single)
+            primary_transcript = (full_text, segments)
+            primary_language = "auto"
         except Exception as e:
             raise e
     
-    # Convert to our format
-    segments = [
-        TranscriptSegment(
-            text=entry.text,
-            start=entry.start,
-            duration=entry.duration
-        )
-        for entry in transcript
-    ]
+    if primary_transcript is None:
+        raise NoTranscriptFound(video_id, languages, None)
     
-    # Build full text
-    full_text = " ".join([entry.text for entry in transcript])
-    
-    return full_text, segments, used_language, available_languages
+    return primary_transcript[0], primary_transcript[1], primary_language, available_languages, all_transcripts
 
 
 @app.get("/")
@@ -189,7 +261,8 @@ async def get_transcript(request: TranscriptRequest):
     Fetch transcript and metadata for a YouTube video.
     
     - **url**: YouTube video URL or video ID
-    - **languages**: Preferred languages for transcript (default: ["en", "pl", "de", "es", "fr", "auto"])
+    - **languages**: Preferred languages for transcript (default: ["pl", "en", "de", "es", "fr", "auto"])
+    - **fetch_all_languages**: If True, fetch all available languages (default: True)
     """
     try:
         # Extract video ID
@@ -198,11 +271,12 @@ async def get_transcript(request: TranscriptRequest):
         # Get metadata
         metadata = get_video_metadata(video_id)
         
-        # Get transcript
+        # Get transcript(s)
         try:
-            full_text, segments, language, available_langs = fetch_transcript(
+            full_text, segments, language, available_langs, all_transcripts = fetch_transcript(
                 video_id, 
-                request.languages
+                request.languages,
+                request.fetch_all_languages
             )
             
             return TranscriptResponse(
@@ -213,6 +287,7 @@ async def get_transcript(request: TranscriptRequest):
                 transcript_text=full_text,
                 transcript_segments=segments,
                 transcript_language=language,
+                all_transcripts=all_transcripts,
                 available_languages=available_langs,
             )
             

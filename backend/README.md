@@ -1,45 +1,45 @@
 # YouTube Transcript Scraper Backend
 
-Backend API dla Obsidian YouTube Scraper Plugin. Pobiera transkrypcje i metadane z filmów YouTube.
+Backend API for Obsidian YouTube Scraper Plugin. Fetches transcripts and metadata from YouTube videos.
 
-## Funkcje
+## Features
 
-- ✅ Pobieranie transkrypcji (automatycznych i ręcznych)
-- ✅ Pobieranie metadanych (tytuł, autor, thumbnail)
-- ✅ Obsługa wielu języków
-- ✅ Batch API dla wielu filmów
-- ✅ CORS dla dostępu z Obsidiana
+- ✅ Fetch transcripts (auto-generated and manual)
+- ✅ Fetch metadata (title, author, thumbnail)
+- ✅ Multi-language support (fetch all available languages)
+- ✅ Batch API for multiple videos
+- ✅ CORS enabled for Obsidian access
 - ✅ Docker ready
 
-## Szybki start
+## Quick Start
 
-### Docker (zalecane)
+### Docker (recommended)
 
 ```bash
-# Build i uruchom
+# Build and run
 docker-compose up -d
 
-# Sprawdź status
+# Check status
 docker-compose logs -f
 
-# Zatrzymaj
+# Stop
 docker-compose down
 ```
 
-### Lokalne uruchomienie
+### Local Development
 
 ```bash
-# Utwórz venv
+# Create venv
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
-# lub: venv\Scripts\activate  # Windows
+# or: venv\Scripts\activate  # Windows
 
-# Zainstaluj zależności
+# Install dependencies
 pip install -r requirements.txt
 
-# Uruchom
+# Run
 python main.py
-# lub
+# or
 uvicorn main:app --host 0.0.0.0 --port 8765 --reload
 ```
 
@@ -51,18 +51,19 @@ GET /
 GET /health
 ```
 
-### Pobierz transkrypcję
+### Get Transcript
 ```
 POST /transcript
 Content-Type: application/json
 
 {
     "url": "https://www.youtube.com/watch?v=VIDEO_ID",
-    "languages": ["pl", "en", "auto"]  // opcjonalne
+    "languages": ["pl", "en", "auto"],
+    "fetch_all_languages": true
 }
 ```
 
-**Odpowiedź:**
+**Response:**
 ```json
 {
     "success": true,
@@ -70,22 +71,33 @@ Content-Type: application/json
     "video_id": "VIDEO_ID",
     "metadata": {
         "video_id": "VIDEO_ID",
-        "title": "Tytuł filmu",
-        "author": "Nazwa kanału",
-        "description": "",
+        "title": "Video Title",
+        "author": "Channel Name",
         "thumbnail_url": "https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg"
     },
-    "transcript_text": "Pełny tekst transkrypcji...",
-    "transcript_segments": [
-        {"text": "Segment 1", "start": 0.0, "duration": 2.5},
-        {"text": "Segment 2", "start": 2.5, "duration": 3.0}
-    ],
+    "transcript_text": "Full transcript text...",
     "transcript_language": "en",
+    "all_transcripts": [
+        {
+            "language": "en",
+            "language_name": "English",
+            "is_generated": true,
+            "text": "Full text...",
+            "segments": [...]
+        },
+        {
+            "language": "pl",
+            "language_name": "Polish",
+            "is_generated": false,
+            "text": "Pełny tekst...",
+            "segments": [...]
+        }
+    ],
     "available_languages": ["en", "pl", "de"]
 }
 ```
 
-### Batch (wiele filmów)
+### Batch (multiple videos)
 ```
 POST /batch
 Content-Type: application/json
@@ -93,20 +105,20 @@ Content-Type: application/json
 ["url1", "url2", "url3"]
 ```
 
-## Konfiguracja w Obsidian
+## Obsidian Configuration
 
-W ustawieniach pluginu ustaw:
-- **Backend URL**: `http://ADRES_IP_SERWERA:8765`
+In plugin settings, set:
+- **Backend URL**: `http://SERVER_IP:8765`
 
-Gdzie `ADRES_IP_SERWERA` to adres maszyny z Dockerem w sieci LAN (np. `192.168.1.100`).
+Where `SERVER_IP` is the IP address of the machine running Docker (e.g. `192.168.1.100`).
 
-## Testowanie
+## Testing
 
 ```bash
 # Test health
 curl http://localhost:8765/health
 
-# Test transkrypcji
+# Test transcript
 curl -X POST http://localhost:8765/transcript \
   -H "Content-Type: application/json" \
   -d '{"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}'
@@ -114,17 +126,17 @@ curl -X POST http://localhost:8765/transcript \
 
 ## Swagger UI
 
-Po uruchomieniu dostępna jest dokumentacja Swagger:
+After starting, API documentation is available at:
 - http://localhost:8765/docs
 - http://localhost:8765/redoc
 
-## Wymagania
+## Requirements
 
 - Python 3.10+
-- Docker (opcjonalne, ale zalecane)
+- Docker (optional but recommended)
 
-## Limity
+## Limitations
 
-- YouTube może ograniczać liczbę requestów
-- Niektóre filmy nie mają transkrypcji
-- Filmy prywatne/region-locked mogą nie działać
+- YouTube may rate-limit requests
+- Some videos don't have transcripts
+- Private/region-locked videos may not work

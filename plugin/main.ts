@@ -79,6 +79,7 @@ interface YouTubeScraperSettings {
 	preferredLanguages: string;
 	includeTimestamps: boolean;
 	includeSegments: boolean;
+	fetchAllLanguages: boolean;
 }
 
 const DEFAULT_SETTINGS: YouTubeScraperSettings = {
@@ -92,6 +93,7 @@ const DEFAULT_SETTINGS: YouTubeScraperSettings = {
 	preferredLanguages: "pl, en, auto",
 	includeTimestamps: false,
 	includeSegments: false,
+	fetchAllLanguages: true,
 };
 
 // ============== Types ==============
@@ -115,6 +117,14 @@ interface TranscriptSegment {
 	duration: number;
 }
 
+interface SingleTranscript {
+	language: string;
+	language_name?: string;
+	is_generated: boolean;
+	text: string;
+	segments: TranscriptSegment[];
+}
+
 interface TranscriptResponse {
 	success: boolean;
 	url: string;
@@ -123,6 +133,7 @@ interface TranscriptResponse {
 	transcript_text?: string;
 	transcript_segments?: TranscriptSegment[];
 	transcript_language?: string;
+	all_transcripts?: SingleTranscript[];
 	available_languages?: string[];
 	error?: string;
 }
@@ -781,6 +792,7 @@ export default class YouTubeScraperPlugin extends Plugin {
 				body: JSON.stringify({
 					url: url,
 					languages: languages,
+					fetch_all_languages: this.settings.fetchAllLanguages,
 				}),
 			});
 
@@ -849,23 +861,8 @@ export default class YouTubeScraperPlugin extends Plugin {
 		const sources = [...new Set(sourceFiles.map((f) => `[[${f.replace(".md", "")}]]`))];
 		const titleSafe = (result.metadata?.title || result.video_id).replace(/"/g, "'");
 
-		// Build transcript content
-		let transcriptContent = "";
-		
-		if (this.settings.includeSegments && result.transcript_segments) {
-			// Include segments with optional timestamps
-			for (const segment of result.transcript_segments) {
-				if (this.settings.includeTimestamps) {
-					const timestamp = this.formatTimestamp(segment.start);
-					transcriptContent += `**[${timestamp}]** ${segment.text}\n\n`;
-				} else {
-					transcriptContent += `${segment.text}\n\n`;
-				}
-			}
-		} else if (result.transcript_text) {
-			// Just full text
-			transcriptContent = result.transcript_text;
-		}
+		// Get list of languages in transcripts
+		const transcriptLangs = result.all_transcripts?.map(t => t.language).join(", ") || result.transcript_language || "unknown";
 
 		// File content
 		let mdContent = `---
@@ -873,7 +870,7 @@ video_id: "${result.video_id}"
 url: "${result.url}"
 title: "${titleSafe}"
 author: "${result.metadata?.author || "Unknown"}"
-transcript_language: "${result.transcript_language || "unknown"}"
+transcript_languages: "${transcriptLangs}"
 scraped_at: "${new Date().toISOString()}"
 success: ${result.success}
 source_notes: ${JSON.stringify(sources)}
@@ -883,7 +880,7 @@ source_notes: ${JSON.stringify(sources)}
 
 > **Video:** [${result.url}](${result.url})
 > **Channel:** ${result.metadata?.author || "Unknown"}
-> **Language:** ${result.transcript_language || "unknown"}
+> **Languages:** ${transcriptLangs}
 > **Scraped:** ${new Date().toISOString().split("T")[0]}
 > **Linked from:** ${sources.join(", ")}
 
@@ -891,15 +888,50 @@ source_notes: ${JSON.stringify(sources)}
 
 `;
 
-		if (result.success && transcriptContent) {
-			mdContent += `## Transcript\n\n${transcriptContent}\n`;
-		} else if (!result.success) {
+		if (result.success) {
+			// Check if we have multiple transcripts
+			if (result.all_transcripts && result.all_transcripts.length > 0) {
+				for (const transcript of result.all_transcripts) {
+					const langLabel = transcript.language_name || transcript.language;
+					const genLabel = transcript.is_generated ? " (auto-generated)" : "";
+					mdContent += `## Transcript - ${langLabel}${genLabel}\n\n`;
+					
+					if (this.settings.includeSegments && transcript.segments) {
+						for (const segment of transcript.segments) {
+							if (this.settings.includeTimestamps) {
+								const timestamp = this.formatTimestamp(segment.start);
+								mdContent += `**[${timestamp}]** ${segment.text}\n\n`;
+							} else {
+								mdContent += `${segment.text}\n\n`;
+							}
+						}
+					} else {
+						mdContent += `${transcript.text}\n\n`;
+					}
+				}
+			} else if (result.transcript_text) {
+				// Fallback to single transcript
+				mdContent += `## Transcript\n\n`;
+				if (this.settings.includeSegments && result.transcript_segments) {
+					for (const segment of result.transcript_segments) {
+						if (this.settings.includeTimestamps) {
+							const timestamp = this.formatTimestamp(segment.start);
+							mdContent += `**[${timestamp}]** ${segment.text}\n\n`;
+						} else {
+							mdContent += `${segment.text}\n\n`;
+						}
+					}
+				} else {
+					mdContent += `${result.transcript_text}\n`;
+				}
+			} else {
+				mdContent += `## Transcript\n\n*No transcript available for this video*\n`;
+			}
+		} else {
 			mdContent += `## Error\n\nFailed to get transcript: **${result.error}**\n`;
 			if (result.available_languages && result.available_languages.length > 0) {
 				mdContent += `\nAvailable languages: ${result.available_languages.join(", ")}\n`;
 			}
-		} else {
-			mdContent += `## Transcript\n\n*No transcript available for this video*\n`;
 		}
 
 		// Save file
@@ -1454,6 +1486,18 @@ class YouTubeScraperSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.includeSegments)
 					.onChange(async (value) => {
 						this.plugin.settings.includeSegments = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Fetch all available languages")
+			.setDesc("Download transcripts in all available languages (e.g. both Polish and English)")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.fetchAllLanguages)
+					.onChange(async (value) => {
+						this.plugin.settings.fetchAllLanguages = value;
 						await this.plugin.saveSettings();
 					})
 			);

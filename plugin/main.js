@@ -78,7 +78,8 @@ var DEFAULT_SETTINGS = {
   excludeFolders: "",
   preferredLanguages: "pl, en, auto",
   includeTimestamps: false,
-  includeSegments: false
+  includeSegments: false,
+  fetchAllLanguages: true
 };
 var BackgroundScrapingManager = class {
   constructor(plugin) {
@@ -575,7 +576,8 @@ var YouTubeScraperPlugin = class extends import_obsidian.Plugin {
         },
         body: JSON.stringify({
           url,
-          languages
+          languages,
+          fetch_all_languages: this.settings.fetchAllLanguages
         })
       });
       if (response.status !== 200) {
@@ -612,7 +614,7 @@ var YouTubeScraperPlugin = class extends import_obsidian.Plugin {
   }
   // Save transcript to file
   async saveTranscript(result, sourceFiles) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     const outputFolder = this.settings.outputFolder;
     if (!await this.app.vault.adapter.exists(outputFolder)) {
       await this.app.vault.createFolder(outputFolder);
@@ -627,51 +629,84 @@ var YouTubeScraperPlugin = class extends import_obsidian.Plugin {
     const filePath = `${outputFolder}/${filename}`;
     const sources = [...new Set(sourceFiles.map((f) => `[[${f.replace(".md", "")}]]`))];
     const titleSafe = (((_b = result.metadata) == null ? void 0 : _b.title) || result.video_id).replace(/"/g, "'");
-    let transcriptContent = "";
-    if (this.settings.includeSegments && result.transcript_segments) {
-      for (const segment of result.transcript_segments) {
-        if (this.settings.includeTimestamps) {
-          const timestamp = this.formatTimestamp(segment.start);
-          transcriptContent += `**[${timestamp}]** ${segment.text}
-
-`;
-        } else {
-          transcriptContent += `${segment.text}
-
-`;
-        }
-      }
-    } else if (result.transcript_text) {
-      transcriptContent = result.transcript_text;
-    }
+    const transcriptLangs = ((_c = result.all_transcripts) == null ? void 0 : _c.map((t) => t.language).join(", ")) || result.transcript_language || "unknown";
     let mdContent = `---
 video_id: "${result.video_id}"
 url: "${result.url}"
 title: "${titleSafe}"
-author: "${((_c = result.metadata) == null ? void 0 : _c.author) || "Unknown"}"
-transcript_language: "${result.transcript_language || "unknown"}"
+author: "${((_d = result.metadata) == null ? void 0 : _d.author) || "Unknown"}"
+transcript_languages: "${transcriptLangs}"
 scraped_at: "${(/* @__PURE__ */ new Date()).toISOString()}"
 success: ${result.success}
 source_notes: ${JSON.stringify(sources)}
 ---
 
-# ${((_d = result.metadata) == null ? void 0 : _d.title) || result.video_id}
+# ${((_e = result.metadata) == null ? void 0 : _e.title) || result.video_id}
 
 > **Video:** [${result.url}](${result.url})
-> **Channel:** ${((_e = result.metadata) == null ? void 0 : _e.author) || "Unknown"}
-> **Language:** ${result.transcript_language || "unknown"}
+> **Channel:** ${((_f = result.metadata) == null ? void 0 : _f.author) || "Unknown"}
+> **Languages:** ${transcriptLangs}
 > **Scraped:** ${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}
 > **Linked from:** ${sources.join(", ")}
 
-![Thumbnail](${((_f = result.metadata) == null ? void 0 : _f.thumbnail_url) || ""})
+![Thumbnail](${((_g = result.metadata) == null ? void 0 : _g.thumbnail_url) || ""})
 
 `;
-    if (result.success && transcriptContent) {
-      mdContent += `## Transcript
+    if (result.success) {
+      if (result.all_transcripts && result.all_transcripts.length > 0) {
+        for (const transcript of result.all_transcripts) {
+          const langLabel = transcript.language_name || transcript.language;
+          const genLabel = transcript.is_generated ? " (auto-generated)" : "";
+          mdContent += `## Transcript - ${langLabel}${genLabel}
 
-${transcriptContent}
 `;
-    } else if (!result.success) {
+          if (this.settings.includeSegments && transcript.segments) {
+            for (const segment of transcript.segments) {
+              if (this.settings.includeTimestamps) {
+                const timestamp = this.formatTimestamp(segment.start);
+                mdContent += `**[${timestamp}]** ${segment.text}
+
+`;
+              } else {
+                mdContent += `${segment.text}
+
+`;
+              }
+            }
+          } else {
+            mdContent += `${transcript.text}
+
+`;
+          }
+        }
+      } else if (result.transcript_text) {
+        mdContent += `## Transcript
+
+`;
+        if (this.settings.includeSegments && result.transcript_segments) {
+          for (const segment of result.transcript_segments) {
+            if (this.settings.includeTimestamps) {
+              const timestamp = this.formatTimestamp(segment.start);
+              mdContent += `**[${timestamp}]** ${segment.text}
+
+`;
+            } else {
+              mdContent += `${segment.text}
+
+`;
+            }
+          }
+        } else {
+          mdContent += `${result.transcript_text}
+`;
+        }
+      } else {
+        mdContent += `## Transcript
+
+*No transcript available for this video*
+`;
+      }
+    } else {
       mdContent += `## Error
 
 Failed to get transcript: **${result.error}**
@@ -681,11 +716,6 @@ Failed to get transcript: **${result.error}**
 Available languages: ${result.available_languages.join(", ")}
 `;
       }
-    } else {
-      mdContent += `## Transcript
-
-*No transcript available for this video*
-`;
     }
     const existingFile = this.app.vault.getAbstractFileByPath(filePath);
     if (existingFile instanceof import_obsidian.TFile) {
@@ -1058,6 +1088,12 @@ var YouTubeScraperSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("Include segments").setDesc("Save transcript as separate segments (instead of continuous text)").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.includeSegments).onChange(async (value) => {
         this.plugin.settings.includeSegments = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName("Fetch all available languages").setDesc("Download transcripts in all available languages (e.g. both Polish and English)").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.fetchAllLanguages).onChange(async (value) => {
+        this.plugin.settings.fetchAllLanguages = value;
         await this.plugin.saveSettings();
       })
     );

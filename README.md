@@ -1,8 +1,10 @@
 # Obsidian YouTube Scraper
 
-Kompletne rozwiązanie do pobierania transkrypcji z filmów YouTube do Obsidian.
+A complete solution for downloading YouTube video transcripts into Obsidian notes.
 
-## 📁 Struktura projektu
+**Note:** This plugin only scrapes **YouTube links** (youtube.com, youtu.be). Other links are ignored.
+
+## 📁 Project Structure
 
 ```
 obsidian-youtube-scraper/
@@ -13,13 +15,13 @@ obsidian-youtube-scraper/
 │   └── requirements.txt
 │
 └── plugin/           # Obsidian plugin
-    ├── main.ts       # Źródło
-    ├── main.js       # Zbudowany plugin
+    ├── main.ts       # Source code
+    ├── main.js       # Built plugin
     ├── manifest.json
     └── styles.css
 ```
 
-## 🚀 Szybki start
+## 🚀 Quick Start
 
 ### 1. Backend (Docker)
 
@@ -28,59 +30,59 @@ cd backend
 docker-compose up -d
 ```
 
-Sprawdź: `curl http://localhost:8765/health`
+Verify: `curl http://localhost:8765/health`
 
-### 2. Plugin Obsidian
+### 2. Obsidian Plugin
 
 ```bash
-# Skopiuj do folderu pluginów
+# Copy to plugins folder
 cp -r plugin ~/.obsidian/plugins/youtube-scraper
 
-# Lub jeśli chcesz zbudować ze źródeł:
+# Or build from source:
 cd plugin
 npm install
 npm run build
 ```
 
-3. Włącz plugin w Obsidian
-4. Ustaw **Backend URL** w ustawieniach pluginu (np. `http://192.168.1.100:8765`)
+3. Enable plugin in Obsidian
+4. Set **Backend URL** in plugin settings (e.g. `http://192.168.1.100:8765`)
 
-## ✨ Funkcje
+## ✨ Features
 
-- 📺 Automatyczne wykrywanie linków YouTube
-- 📝 Pobieranie transkrypcji (auto-generated i ręcznych)
-- 🌐 Obsługa wielu języków
-- 🔗 Automatyczne backlinki do transkrypcji
-- 📁 Skanowanie notatki / folderu / całego vault
-- ⏸️ Pauza i wznowienie scrapowania
-- ⏱️ Opcjonalne timestampy w transkrypcji
+- 📺 Automatic YouTube link detection
+- 📝 Transcript download (auto-generated and manual)
+- 🌐 Multi-language support (downloads all available languages)
+- 🔗 Automatic backlinks to transcripts
+- 📁 Scan single note / folder / entire vault
+- ⏸️ Pause and resume scraping
+- ⏱️ Optional timestamps in transcripts
 
-## 📖 Dokumentacja
+## 📖 Documentation
 
 - [Backend README](backend/README.md)
 - [Plugin README](plugin/README.md)
 
 ## 🔧 API Endpoints
 
-| Endpoint | Metoda | Opis |
-|----------|--------|------|
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/transcript` | POST | Pobierz transkrypcję |
-| `/batch` | POST | Pobierz wiele transkrypcji |
+| `/transcript` | POST | Get transcript |
+| `/batch` | POST | Get multiple transcripts |
 
-### Przykład użycia API
+### Example API Usage
 
 ```bash
 curl -X POST http://localhost:8765/transcript \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://www.youtube.com/watch?v=VIDEO_ID"}'
+  -d '{"url": "https://www.youtube.com/watch?v=VIDEO_ID", "fetch_all_languages": true}'
 ```
 
-## 📋 Wymagania
+## 📋 Requirements
 
-- **Backend**: Docker lub Python 3.10+
+- **Backend**: Docker or Python 3.10+
 - **Plugin**: Obsidian 1.0.0+
 
-## 📄 Licencja
+## 📄 License
 
 MIT

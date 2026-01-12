@@ -1,9 +1,9 @@
 {
 	"id": "youtube-scraper",
 	"name": "YouTube Scraper",
-	"version": "1.0.0",
+	"version": "0.1.0",
 	"minAppVersion": "1.0.0",
 	"description": "Scrape YouTube video transcripts from links in your notes",
-	"author": "banan",
+	"author": "Błażej Kapała",
 	"isDesktopOnly": false
 }

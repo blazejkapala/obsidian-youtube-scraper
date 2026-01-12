@@ -4,6 +4,7 @@ FastAPI server for fetching YouTube video transcripts and metadata.
 Designed to work with Obsidian YouTube Scraper Plugin.
 """
 
+import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -15,7 +16,15 @@ from youtube_transcript_api._errors import (
     TranscriptsDisabled,
     NoTranscriptFound,
     VideoUnavailable,
+    CouldNotRetrieveTranscript,
+    RequestBlocked,
+    InvalidVideoId,
+    IpBlocked,
 )
+
+# Setup logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="YouTube Transcript Scraper",
@@ -131,6 +140,7 @@ def fetch_transcript(video_id: str, languages: list[str], fetch_all: bool = True
     Fetch transcript for a YouTube video.
     Returns: (full_text, segments, language_code, available_languages, all_transcripts)
     """
+    logger.info(f"Fetching transcript for video_id: {video_id}, languages: {languages}, fetch_all: {fetch_all}")
     ytt_api = YouTubeTranscriptApi()
     
     # Get available transcripts info
@@ -141,8 +151,19 @@ def fetch_transcript(video_id: str, languages: list[str], fetch_all: bool = True
         for t in transcript_list:
             available_languages.append(t.language_code)
             transcript_info[t.language_code] = (t.language, t.is_generated)
-    except Exception:
-        pass
+        logger.info(f"Available languages for {video_id}: {available_languages}")
+    except TranscriptsDisabled as e:
+        logger.warning(f"Transcripts disabled for video {video_id}: {e}")
+        raise
+    except (NoTranscriptFound, CouldNotRetrieveTranscript) as e:
+        logger.warning(f"No transcript available for video {video_id}: {e}")
+        raise
+    except (RequestBlocked, IpBlocked) as e:
+        logger.error(f"Request blocked by YouTube for video {video_id}: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Error listing transcripts for {video_id}: {type(e).__name__}: {e}")
+        raise
     
     # Determine which languages to fetch
     languages_to_fetch = []
@@ -168,6 +189,8 @@ def fetch_transcript(video_id: str, languages: list[str], fetch_all: bool = True
                 languages_to_fetch.append(lang)
                 break
     
+    logger.info(f"Languages to fetch: {languages_to_fetch}")
+    
     # Fetch all transcripts
     all_transcripts: list[SingleTranscript] = []
     primary_transcript = None
@@ -175,6 +198,7 @@ def fetch_transcript(video_id: str, languages: list[str], fetch_all: bool = True
     
     for lang in languages_to_fetch:
         try:
+            logger.debug(f"Fetching transcript in language: {lang}")
             transcript = ytt_api.fetch(video_id, languages=[lang])
             
             segments = [
@@ -197,17 +221,26 @@ def fetch_transcript(video_id: str, languages: list[str], fetch_all: bool = True
                 segments=segments
             )
             all_transcripts.append(single)
+            logger.debug(f"Successfully fetched transcript in {lang}")
             
             # First successful is primary
             if primary_transcript is None:
                 primary_transcript = (full_text, segments)
                 primary_language = lang
                 
-        except (NoTranscriptFound, TranscriptsDisabled):
+        except (NoTranscriptFound, TranscriptsDisabled, CouldNotRetrieveTranscript) as e:
+            logger.debug(f"Could not fetch transcript in {lang}: {e}")
+            continue
+        except (RequestBlocked, IpBlocked) as e:
+            logger.error(f"IP blocked while fetching transcript in {lang}: {e}")
+            raise  # Re-raise to propagate the IP blocked error
+        except Exception as e:
+            logger.error(f"Unexpected error fetching transcript in {lang}: {type(e).__name__}: {e}")
             continue
     
     # If nothing found, try auto-generated fallback
     if not all_transcripts:
+        logger.info("No transcripts found in preferred languages, trying auto fallback")
         try:
             transcript = ytt_api.fetch(video_id)
             segments = [
@@ -230,12 +263,16 @@ def fetch_transcript(video_id: str, languages: list[str], fetch_all: bool = True
             all_transcripts.append(single)
             primary_transcript = (full_text, segments)
             primary_language = "auto"
+            logger.info("Successfully fetched auto-generated transcript")
         except Exception as e:
-            raise e
+            logger.error(f"Failed to fetch any transcript for {video_id}: {type(e).__name__}: {e}")
+            raise NoTranscriptFound(video_id, languages, str(e))
     
     if primary_transcript is None:
-        raise NoTranscriptFound(video_id, languages, None)
+        logger.error(f"No transcript found for video {video_id}")
+        raise NoTranscriptFound(video_id, languages, "No transcript could be fetched")
     
+    logger.info(f"Returning transcript in {primary_language}, total languages: {len(all_transcripts)}")
     return primary_transcript[0], primary_transcript[1], primary_language, available_languages, all_transcripts
 
 
@@ -291,7 +328,8 @@ async def get_transcript(request: TranscriptRequest):
                 available_languages=available_langs,
             )
             
-        except TranscriptsDisabled:
+        except TranscriptsDisabled as e:
+            logger.warning(f"Transcripts disabled for {video_id}: {e}")
             return TranscriptResponse(
                 success=False,
                 url=request.url,
@@ -301,27 +339,51 @@ async def get_transcript(request: TranscriptRequest):
                 available_languages=[],
             )
             
-        except NoTranscriptFound:
+        except (NoTranscriptFound, CouldNotRetrieveTranscript) as e:
+            logger.warning(f"No transcript found for {video_id}: {e}")
             return TranscriptResponse(
                 success=False,
                 url=request.url,
                 video_id=video_id,
                 metadata=metadata,
-                error="No transcript found for this video",
+                error=f"No transcript found for this video: {str(e)}",
                 available_languages=[],
             )
             
-        except VideoUnavailable:
+        except VideoUnavailable as e:
+            logger.warning(f"Video unavailable {video_id}: {e}")
             return TranscriptResponse(
                 success=False,
                 url=request.url,
                 video_id=video_id,
                 error="Video is unavailable",
             )
+        
+        except (RequestBlocked, IpBlocked) as e:
+            logger.error(f"Request blocked by YouTube for {video_id}: {e}")
+            return TranscriptResponse(
+                success=False,
+                url=request.url,
+                video_id=video_id,
+                metadata=metadata,
+                error=f"IP blocked by YouTube. Your IP has been blocked due to too many requests or because you're using a cloud provider IP. Try again later or configure a proxy/cookies.",
+            )
+        
+        except Exception as e:
+            logger.error(f"Unexpected error fetching transcript for {video_id}: {type(e).__name__}: {e}", exc_info=True)
+            return TranscriptResponse(
+                success=False,
+                url=request.url,
+                video_id=video_id,
+                metadata=metadata,
+                error=f"Error fetching transcript: {str(e)}",
+            )
             
     except ValueError as e:
+        logger.error(f"ValueError: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Unhandled exception: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
